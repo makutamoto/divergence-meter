@@ -1,0 +1,1215 @@
+		LIST		    P=PIC16F1509
+		#INCLUDE	    p16f1509.inc
+		__CONFIG	    _CONFIG1, _FOSC_INTOSC & _CP_OFF & _BOREN_OFF & _PWRTE_ON & _WDTE_OFF & _MCLRE_ON
+		__CONFIG	    _CONFIG2, _LVP_OFF
+		
+WREG_BACK	EQU		    H'20'
+BSR_BACK	EQU		    H'21'
+STATUS_BACK	EQU		    H'22'
+
+FSR0H_BACK	EQU		    H'70'
+FSR0L_BACK	EQU		    H'71'
+
+I_FOR_INT	EQU		    H'72'
+TEMP_FOR_INT	EQU		    H'73'
+		
+		CBLOCK		    H'74'
+				    D1
+				    D2
+				    D3
+		ENDC
+
+WREG_BACK_2	EQU		    H'120'
+		
+		CBLOCK		    H'124'
+				    NIXIE_VAL_0_2
+				    NIXIE_VAL_1_2
+				    NIXIE_VAL_2_2
+				    NIXIE_VAL_3_2
+				    NIXIE_VAL_4_2
+				    NIXIE_VAL_5_2
+				    NIXIE_VAL_6_2
+				    NIXIE_VAL_7_2
+		ENDC
+		
+		CBLOCK		    H'12C'
+				    NIXIE_S_VAL_0_2
+				    NIXIE_S_VAL_1_2
+				    NIXIE_S_VAL_2_2
+				    NIXIE_S_VAL_3_2
+				    NIXIE_S_VAL_4_2
+				    NIXIE_S_VAL_5_2
+				    NIXIE_S_VAL_6_2
+				    NIXIE_S_VAL_7_2
+		ENDC
+		
+		CBLOCK		    H'134'
+				    SHUFFLE_I_0_2
+				    SHUFFLE_I_1_2
+				    SHUFFLE_I_2_2
+				    SHUFFLE_I_3_2
+				    SHUFFLE_I_4_2
+				    SHUFFLE_I_5_2
+				    SHUFFLE_I_6_2
+				    SHUFFLE_I_7_2
+		ENDC
+		
+		CBLOCK		    H'13C'
+				    CLOCK_VAL_SHADOW_S_2
+				    CLOCK_VAL_SHADOW_M_2
+				    CLOCK_VAL_SHADOW_H_2
+				    CLOCK_VAL_SHADOW_DAY_2
+				    CLOCK_VAL_SHADOW_DATE_2
+				    CLOCK_VAL_SHADOW_MO_2
+				    CLOCK_VAL_SHADOW_Y_2
+		ENDC
+		
+		CBLOCK		    H'143'
+				    NIXIE_RECV_0_2
+				    NIXIE_RECV_1_2
+				    NIXIE_RECV_2_2
+				    NIXIE_RECV_3_2
+				    NIXIE_RECV_4_2
+				    NIXIE_RECV_5_2
+				    NIXIE_RECV_6_2
+				    NIXIE_RECV_7_2
+		ENDC
+	
+I_2		EQU		    H'14B'
+		
+NIXIE_DIGIT_2	EQU		    H'14C'
+SHUFFLE_S_TEMP	EQU		    H'14D'
+	
+DS1307_ADDRW_2	EQU		    H'14E'
+DS1307_ADDRR_2	EQU		    H'14F'
+DS1307_DW_2	EQU		    H'150'
+
+LAST_HOURS_2	EQU		    H'151'
+CLOCK_TEMP_2	EQU		    H'152'
+	
+UPDATE_CLOCKF_2 EQU		    H'153'
+
+RECV_TEMP_2	EQU		    H'154'
+RECV_C_ADDR_2	EQU		    H'155'
+RECV_C_DATA_2	EQU		    H'156'
+RECV_D_ADDR_2	EQU		    H'157'
+RECV_D_DATA_2	EQU		    H'158'
+
+CLOCK_DISABLE_2	EQU		    H'159'
+
+DVR_TIMEH_2	EQU		    H'15A'
+DVR_TIMEL_2	EQU		    H'15B'
+
+I2C_TIMEOUT_2	EQU		    H'15C'
+	
+DVR_ADR_2	EQU		    H'15D'
+	
+RECV_LOCK_2	EQU		    H'15E'
+	
+RESET_VEC	ORG		    H'00'
+		GOTO		    START
+INTERRUPT	ORG		    H'04'
+		MOVWF		    WREG_BACK
+		SWAPF		    BSR, W
+		CLRF		    BSR
+		MOVWF		    BSR_BACK
+		SWAPF		    STATUS, W
+		MOVWF		    STATUS_BACK
+		
+		MOVLB		    H'00'
+		BTFSC		    PIR1, RCIF
+		GOTO		    INT_UART_RECV
+		
+		MOVLB		    H'07'
+		BTFSC		    IOCAF, 0
+		GOTO		    INT_DS_CLOCK
+		
+		BTFSC		    IOCAF, 2
+		GOTO		    INT_CHANGE_DVR
+		
+		GOTO		    INT_END
+INT_DS_CLOCK
+		BCF		    IOCAF, 0
+		MOVLB		    H'00'
+		BTFSC		    PORTA, 0
+		GOTO		    INT_END
+
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_DISABLE_2
+		BTFSC		    STATUS, Z
+		GOTO		    INT_DS_CLOCK_0
+		INCF		    DVR_TIMEL_2, F
+		BTFSC		    STATUS, Z
+		INCF		    DVR_TIMEH_2, F
+		MOVLW		    H'10'
+		SUBWF		    DVR_TIMEL_2, W
+		BTFSS		    STATUS, Z
+		GOTO		    INT_END
+		MOVLW		    H'0E'
+		SUBWF		    DVR_TIMEH_2, W
+		BTFSS		    STATUS, Z
+		GOTO		    INT_END
+		CLRF		    DVR_TIMEH_2
+		CLRF		    DVR_TIMEL_2
+		CALL		    SET_SHUFFLE_2
+		GOTO		    INT_END
+INT_DS_CLOCK_0
+		CLRF		    DVR_TIMEH_2
+		CLRF		    DVR_TIMEL_2
+		
+		MOVLB		    H'04'
+		CLRF		    WREG
+		CALL		    UPDATE_CLOCK_4
+		
+		GOTO		    INT_END
+INT_CHANGE_DVR
+		BCF		    IOCAF, 2
+		MOVLB		    H'00'
+		CALL		    DELAY_0.01
+		BTFSS		    PORTA, 2
+		GOTO		    INT_END
+		
+		MOVLB		    H'02'
+		BTFSS		    CLOCK_DISABLE_2, 1
+		GOTO		    $ + 3
+		CALL		    RESTORE_CLOCK_2
+		GOTO		    INT_END
+		BTFSC		    CLOCK_DISABLE_2, 0
+		GOTO		    $ + 3
+		CLRF		    DVR_ADR_2
+		BSF		    CLOCK_DISABLE_2, 0
+INT_CHANGE_DVR_0
+		MOVLW		    H'80'
+		SUBWF		    DVR_ADR_2, W
+		BTFSS		    STATUS, Z
+		GOTO		    $ + 3
+		CALL		    RESTORE_CLOCK_2
+		GOTO		    INT_END
+		
+		MOVFW		    DVR_ADR_2
+		MOVLB		    H'03'
+		CALL		    READ_HEF_3
+		
+		MOVLB		    H'02'
+		BTFSS		    WREG, 0
+		GOTO		    $ + 4
+		MOVLW		    H'20'
+		ADDWF		    DVR_ADR_2, F
+		GOTO		    INT_CHANGE_DVR_0
+		
+		CALL		    BACKUP_FSR0
+		MOVLW		    HIGH NIXIE_S_VAL_0_2
+		MOVWF		    FSR0H
+		MOVLW		    LOW NIXIE_S_VAL_0_2
+		MOVWF		    FSR0L
+		MOVLW		    H'08'
+		MOVWF		    I_FOR_INT
+INT_CHANGE_DVR_1
+		INCF		    DVR_ADR_2, F
+		MOVFW		    DVR_ADR_2
+		MOVLB		    H'03'
+		CALL		    READ_HEF_3
+		
+		MOVLB		    H'02'
+		MOVWF		    INDF0
+		
+		INCF		    FSR0L, F
+		DECFSZ		    I_FOR_INT
+		GOTO		    INT_CHANGE_DVR_1
+
+		MOVLW		    H'18'
+		ADDWF		    DVR_ADR_2, F
+		CALL		    RESTORE_FSR0
+		CALL		    SET_SHUFFLE_2
+		GOTO		    INT_END
+INT_UART_RECV
+		BCF		    PIR1, RCIF
+		
+		MOVLB		    H'03'
+		MOVFW		    RCREG
+		
+		MOVLB		    H'02'
+		BTFSC		    RECV_LOCK_2, 0
+		GOTO		    INT_UART_RECV_UNCLOCKED
+		SUBLW		    H'FA'
+		BTFSS		    STATUS, Z
+		GOTO		    $ + 5
+		BSF		    RECV_LOCK_2, 0
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+		
+		MOVLW		    H'00'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_UNCLOCKED		
+		BTFSS		    WREG, 7
+		GOTO		    INT_UART_RECV_0
+		GOTO		    INT_UART_RECV_1
+INT_UART_RECV_0
+		BTFSS		    WREG, 6
+		GOTO		    INT_UART_RECV_0_0
+		GOTO		    INT_UART_RECV_0_1
+INT_UART_RECV_0_0
+		BTFSS		    WREG, 5
+		GOTO		    INT_UART_RECV_0_0_0_1
+		GOTO		    INT_UART_RECV_0_0_1
+INT_UART_RECV_0_0_0_1
+		MOVWF		    RECV_TEMP_2
+		MOVLW		    H'0F'
+		ANDWF		    RECV_TEMP_2, W
+		MOVWF		    RECV_C_ADDR_2
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_0_0_1
+		BTFSS		    WREG, 4
+		GOTO		    INT_UART_RECV_0_0_1_0
+		GOTO		    INT_UART_RECV_0_0_1_1
+INT_UART_RECV_0_0_1_0
+		MOVWF		    RECV_TEMP_2
+		MOVLW		    H'0F'
+		ANDWF		    RECV_C_DATA_2, F
+		ANDWF		    RECV_TEMP_2, W
+		LSLF		    WREG, F
+		LSLF		    WREG, F
+		LSLF		    WREG, F
+		LSLF		    WREG, F
+		IORWF		    RECV_C_DATA_2, F
+		
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_0_0_1_1
+		MOVWF		    RECV_TEMP_2
+		MOVLW		    H'F0'
+		ANDWF		    RECV_C_DATA_2, F
+		MOVLW		    H'0F'
+		ANDWF		    RECV_TEMP_2, W
+		IORWF		    RECV_C_DATA_2, F
+		
+		MOVFW		    FSR0H
+		MOVWF		    FSR0H_BACK
+		MOVFW		    FSR0L
+		MOVWF		    FSR0L_BACK
+		
+		MOVLW		    HIGH CLOCK_VAL_SHADOW_S_2
+		MOVWF		    FSR0H
+		MOVLW		    LOW CLOCK_VAL_SHADOW_S_2
+		MOVWF		    FSR0L
+		MOVLW		    D'07'
+		SUBWF		    RECV_C_ADDR_2, W
+		BTFSS		    STATUS, C
+		GOTO		    $ + 4
+		MOVLW		    H'00'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+		
+		MOVFW		    RECV_C_ADDR_2
+		ADDWF		    FSR0L, F
+		MOVFW		    RECV_C_DATA_2
+		MOVWF		    INDF0
+		
+		MOVFW		    FSR0H_BACK
+		MOVWF		    FSR0H
+		MOVFW		    FSR0L_BACK
+		MOVWF		    FSR0L
+		
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_0_1
+		BTFSS		    WREG, 5
+		GOTO		    INT_UART_RECV_0_1_0
+		GOTO		    INT_UART_RECV_0_1_1
+INT_UART_RECV_0_1_0
+		CALL		    RESTORE_CLOCK_2
+		
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'0F'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_0_1_1
+		CALL		    UPDATE_DS1307_2
+		MOVLB		    H'04'
+		MOVLW		    H'01'
+		CALL		    UPDATE_CLOCK_4
+		MOVLB		    H'02'
+		
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'0F'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_1
+		BTFSS		    WREG, 6
+		GOTO		    INT_UART_RECV_1_0
+		GOTO		    INT_UART_RECV_1_1
+INT_UART_RECV_1_0
+		BTFSS		    WREG, 5
+		GOTO		    INT_UART_RECV_1_0_0
+		GOTO		    INT_UART_RECV_1_0_1
+INT_UART_RECV_1_0_0
+		MOVWF		    RECV_TEMP_2
+		MOVLW		    H'0F'
+		ANDWF		    RECV_TEMP_2, W
+		MOVWF		    RECV_D_ADDR_2
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_1_0_1
+		BTFSS		    WREG, 4
+		GOTO		    INT_UART_RECV_1_0_1_0
+		GOTO		    INT_UART_RECV_1_0_1_1
+INT_UART_RECV_1_0_1_0
+		MOVWF		    RECV_TEMP_2
+		MOVLW		    H'0F'
+		ANDWF		    RECV_D_DATA_2, F
+		ANDWF		    RECV_TEMP_2, W
+		LSLF		    WREG, F
+		LSLF		    WREG, F
+		LSLF		    WREG, F
+		LSLF		    WREG, F
+		IORWF		    RECV_D_DATA_2, F
+		
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_1_0_1_1
+		MOVWF		    RECV_TEMP_2
+		MOVLW		    H'F0'
+		ANDWF		    RECV_D_DATA_2, F
+		MOVLW		    H'0F'
+		ANDWF		    RECV_TEMP_2, W
+		IORWF		    RECV_D_DATA_2, F
+		
+		MOVLB		    H'00'
+		MOVFW		    FSR0H
+		MOVWF		    FSR0H_BACK
+		MOVFW		    FSR0L
+		MOVWF		    FSR0L_BACK
+		MOVLB		    H'02'
+		
+		MOVLW		    HIGH NIXIE_RECV_0_2
+		MOVWF		    FSR0H
+		MOVLW		    LOW NIXIE_RECV_0_2
+		MOVWF		    FSR0L
+		MOVLW		    D'08'
+		SUBWF		    RECV_D_ADDR_2, W
+		BTFSS		    STATUS, C
+		GOTO		    $ + 4
+		MOVLW		    H'00'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+		
+		MOVFW		    RECV_D_ADDR_2
+		ADDWF		    FSR0L, F
+		MOVFW		    RECV_D_DATA_2
+		MOVWF		    INDF0
+		
+		MOVLB		    H'00'
+		MOVFW		    FSR0H_BACK
+		MOVWF		    FSR0H
+		MOVFW		    FSR0L_BACK
+		MOVWF		    FSR0L
+		MOVLB		    H'02'
+		
+		MOVLW		    H'01'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_1_1
+		BTFSS		    WREG, 5
+		GOTO		    INT_UART_RECV_1_1_0
+		GOTO		    INT_UART_RECV_1_1_1
+INT_UART_RECV_1_1_0
+		MOVFW		    NIXIE_RECV_0_2
+		MOVWF		    NIXIE_S_VAL_0_2
+		MOVFW		    NIXIE_RECV_1_2
+		MOVWF		    NIXIE_S_VAL_1_2
+		MOVFW		    NIXIE_RECV_2_2
+		MOVWF		    NIXIE_S_VAL_2_2
+		MOVFW		    NIXIE_RECV_3_2
+		MOVWF		    NIXIE_S_VAL_3_2
+		MOVFW		    NIXIE_RECV_4_2
+		MOVWF		    NIXIE_S_VAL_4_2
+		MOVFW		    NIXIE_RECV_5_2
+		MOVWF		    NIXIE_S_VAL_5_2
+		MOVFW		    NIXIE_RECV_6_2
+		MOVWF		    NIXIE_S_VAL_6_2
+		MOVFW		    NIXIE_RECV_7_2
+		MOVWF		    NIXIE_S_VAL_7_2
+		
+		CALL		    SET_SHUFFLE_2
+		
+		BSF		    CLOCK_DISABLE_2, 1
+		
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'0F'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_1_1_1
+		BTFSS		    WREG, 4
+		GOTO		    INT_UART_RECV_1_1_1_0
+		GOTO		    INT_UART_RECV_1_1_1_1
+INT_UART_RECV_1_1_1_0
+		ANDLW		    H'0F'
+		MOVWF		    I_FOR_INT
+		
+		SUBLW		    H'03'
+		BTFSC		    STATUS, C
+		GOTO		    $ + 5
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'FF'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+		
+		MOVLB		    H'03'
+		BCF		    PMCON1, CFGS
+		MOVLW		    H'1F'
+		MOVWF		    PMADRH
+		MOVLW		    H'80'
+		MOVWF		    PMADRL
+		MOVFW		    I_FOR_INT
+		BTFSC		    STATUS, Z
+		GOTO		    INT_UART_RECV_1_1_1_0__1
+INT_UART_RECV_1_1_1_0__0
+		MOVLW		    H'20'
+		ADDWF		    PMADRL, F
+		DECFSZ		    I_FOR_INT
+		GOTO		    INT_UART_RECV_1_1_1_0__0
+INT_UART_RECV_1_1_1_0__1
+		MOVFW		    PMADRL
+		MOVWF		    TEMP_FOR_INT
+		
+		BSF		    PMCON1, FREE
+		BSF		    PMCON1, WREN
+		CALL		    UNCLOCK_HEF_3
+		BCF		    PMCON1, WREN
+		
+		MOVFW		    TEMP_FOR_INT
+		MOVWF		    PMADRL
+		BCF		    PMCON1, FREE
+		BSF		    PMCON1, LWLO
+		BSF		    PMCON1, WREN
+		
+		CLRF		    PMDATH
+		CLRF		    PMDATL
+		CALL		    UNCLOCK_HEF_3
+		INCF		    PMADRL, F
+		
+		CALL		    BACKUP_FSR0
+		MOVLW		    HIGH NIXIE_RECV_0_2
+		MOVWF		    FSR0H
+		MOVLW		    LOW NIXIE_RECV_0_2
+		MOVWF		    FSR0L
+		MOVLW		    H'08'
+		MOVWF		    I_FOR_INT
+INT_UART_RECV_1_1_1_0__4
+		MOVFW		    INDF0
+		MOVWF		    PMDATL
+		INCF		    FSR0L, F
+		
+		DECFSZ		    I_FOR_INT, F
+		GOTO		    $ + 2
+		GOTO		    INT_UART_RECV_1_1_1_0__5
+		
+		CALL		    UNCLOCK_HEF_3
+		INCF		    PMADRL, F
+		GOTO		    INT_UART_RECV_1_1_1_0__4
+INT_UART_RECV_1_1_1_0__5
+		BCF		    PMCON1, LWLO
+		CALL		    UNCLOCK_HEF_3
+		BCF		    PMCON1, WREN
+		
+		CALL		    RESTORE_FSR0
+		MOVLB		    H'02'
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'0F'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_UART_RECV_1_1_1_1
+		ANDLW		    H'0F'
+		MOVWF		    I_FOR_INT
+		
+		SUBLW		    H'03'
+		BTFSC		    STATUS, C
+		GOTO		    $ + 5
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'FF'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+		
+		MOVLB		    H'03'
+		BCF		    PMCON1, CFGS
+		MOVLW		    H'1F'
+		MOVWF		    PMADRH
+		MOVLW		    H'80'
+		MOVWF		    PMADRL
+		MOVFW		    I_FOR_INT
+		BTFSC		    STATUS, Z
+		GOTO		    INT_UART_RECV_1_1_1_1__1
+INT_UART_RECV_1_1_1_1__0
+		MOVLW		    H'20'
+		ADDWF		    PMADRL, F
+		DECFSZ		    I_FOR_INT
+		GOTO		    INT_UART_RECV_1_1_1_1__0
+INT_UART_RECV_1_1_1_1__1
+		BSF		    PMCON1, FREE
+		BSF		    PMCON1, WREN
+		CALL		    UNCLOCK_HEF_3
+		BCF		    PMCON1, WREN
+		
+		MOVLB		    H'02'
+		BCF		    RECV_LOCK_2, 0
+		MOVLW		    H'0F'
+		CALL		    PUT_BYTE_2
+		GOTO		    INT_END
+INT_END
+		MOVLB		    H'00'
+		SWAPF		    STATUS_BACK, W
+		MOVWF		    STATUS
+		SWAPF		    BSR_BACK, W
+		MOVWF		    BSR
+		SWAPF		    WREG_BACK, F
+		SWAPF		    WREG_BACK, W
+		RETFIE
+
+START	
+		MOVLB		    H'00'
+		CLRF		    PORTA
+		CLRF		    PORTB
+		CLRF		    PORTC
+		
+		MOVLB		    H'01'
+		MOVLW		    B'01101000'
+		MOVWF		    OSCCON
+		MOVLW		    B'00001101'
+		MOVWF		    TRISA
+		MOVLW		    H'F0'
+		MOVWF		    TRISB
+		CLRF		    TRISC
+		MOVLW		    B'10000010'
+		MOVWF		    OPTION_REG
+		
+		MOVLB		    H'02'
+		CLRF		    LATA
+		CLRF		    LATC
+		
+		CALL		    CLR_SHIFT_2
+		
+		MOVLW		    D'0'
+		MOVWF		    NIXIE_VAL_0_2
+		MOVLW		    D'1'
+		MOVWF		    NIXIE_VAL_1_2
+		MOVLW		    D'2'
+		MOVWF		    NIXIE_VAL_2_2
+		MOVLW		    D'3'
+		MOVWF		    NIXIE_VAL_3_2
+		MOVLW		    D'4'
+		MOVWF		    NIXIE_VAL_4_2
+		MOVLW		    D'5'
+		MOVWF		    NIXIE_VAL_5_2
+		MOVLW		    D'6'
+		MOVWF		    NIXIE_VAL_6_2
+		MOVLW		    D'7'
+		MOVWF		    NIXIE_VAL_7_2
+		
+		MOVLW		    B'01010000'
+		MOVWF		    NIXIE_S_VAL_1_2
+		
+		CLRF		    CLOCK_DISABLE_2
+		
+		MOVLB		    H'03'
+		CLRF		    ANSELA
+		CLRF		    ANSELB
+		CLRF		    ANSELC
+		
+		MOVLW		    B'00100100'
+		MOVWF		    TXSTA
+		MOVLW		    D'25'
+		MOVWF		    SPBRGL
+		MOVLW		    B'10010000'
+		MOVWF		    RCSTA
+		
+		MOVLB		    H'04'
+		MOVLW		    B'00101000'
+		MOVWF		    SSP1CON1
+		CLRF		    SSP1CON2
+		CLRF		    SSP1STAT
+		MOVLW		    H'09'
+		MOVWF		    SSP1ADD
+		
+		MOVLB		    H'02'
+		BSF		    LATA, 1
+		MOVLW		    H'00'
+		MOVWF		    DS1307_ADDRR_2
+		MOVWF		    DS1307_ADDRW_2
+		MOVLB		    H'04'
+		CALL		    READ_DS1307_4
+		BTFSS		    WREG, 7
+		GOTO		    $ + 3
+		BCF		    WREG, 7
+		CALL		    WRITE_DS1307_4
+		
+		MOVLB		    H'02'
+		MOVLW		    H'02'
+		MOVWF		    DS1307_ADDRR_2
+		MOVWF		    DS1307_ADDRW_2
+		MOVLB		    H'04'
+		CALL		    READ_DS1307_4
+		BTFSS		    WREG, 6
+		GOTO		    $ + 3
+		BCF		    WREG, 6
+		CALL		    WRITE_DS1307_4
+		
+		MOVLB		    H'02'
+		MOVLW		    H'07'
+		MOVWF		    DS1307_ADDRW_2
+		MOVLB		    H'04'
+		MOVLW		    B'00010000'
+		CALL		    WRITE_DS1307_4
+		
+		MOVLW		    H'01'
+		CALL		    UPDATE_CLOCK_4
+		
+		MOVLB		    H'07'
+		BSF		    IOCAP, 2
+		BSF		    IOCAN, 0
+		
+		MOVLB		    H'01'
+		BSF		    PIE1, RCIE
+		
+		MOVLB		    H'00'
+		MOVLW		    B'01011111'
+		MOVWF		    T2CON
+		MOVLW		    D'49'
+		MOVWF		    PR2
+		
+		MOVLW		    B'11001000'
+		MOVWF		    INTCON
+		
+		CLRF		    TMR0
+		
+		BCF		    PIR1, TMR2IF
+		CLRF		    TMR2
+		
+		BCF		    PIR1, TXIF
+		
+MAIN
+		MOVLB		    H'00'
+		BTFSC		    INTCON, TMR0IF
+		GOTO		    DYNAMIC
+		BTFSC		    PIR1,   TMR2IF
+		GOTO		    SHUFFLE
+		
+		GOTO		    MAIN
+DYNAMIC
+		BCF		    INTCON, TMR0IF
+		CLRF		    TMR0
+		
+		MOVLB		    H'02'
+		MOVLW		    HIGH NIXIE_VAL_0_2
+		MOVWF		    FSR0H
+		MOVLW		    LOW NIXIE_VAL_0_2
+		MOVWF		    FSR0L
+		MOVFW		    NIXIE_DIGIT_2
+		ADDWF		    FSR0L, F
+		
+		MOVLW		    HIGH NIXIE_S_VAL_0_2
+		MOVWF		    FSR1H
+		MOVLW		    LOW NIXIE_S_VAL_0_2
+		MOVWF		    FSR1L
+		MOVFW		    NIXIE_DIGIT_2
+		ADDWF		    FSR1L, F
+		
+		BCF		    LATC, 4
+		BTFSC		    INDF1, 5
+		BSF		    LATC, 4
+		NOP
+		BCF		    LATC, 5
+		BTFSC		    INDF1, 4
+		BSF		    LATC, 5
+		
+		BTFSC		    INDF1, 7
+		GOTO		    DYNAMIC_2
+DYNAMIC_0
+		MOVLW		    B'11110000'
+		ANDWF		    LATC, F
+		MOVFW		    INDF0
+		BTFSC		    INDF1, 6
+		MOVLW		    B'00001111'
+		IORWF		    LATC, F
+		
+		BCF		    LATA, 5
+		BSF		    LATC, 6
+		BCF		    LATA, 4
+		NOP
+		BSF		    LATA, 4
+		BCF		    LATC, 6
+		
+		MOVFW		    NIXIE_DIGIT_2
+		BTFSC		    STATUS, Z
+		GOTO		    DYNAMIC_2
+DYNAMIC_1
+		BCF		    LATA, 4
+		NOP
+		BSF		    LATA, 4
+		DECFSZ		    WREG, F
+		GOTO		    DYNAMIC_1
+DYNAMIC_2		
+		BSF		    LATA, 5
+		
+		INCF		    NIXIE_DIGIT_2, F
+		MOVLW		    B'00001000'
+		SUBWF		    NIXIE_DIGIT_2, W
+		BTFSC		    STATUS, Z
+		CLRF		    NIXIE_DIGIT_2
+		
+		CALL		    CLR_SHIFT_2
+		GOTO		    MAIN
+
+SHUFFLE
+		BCF		    PIR1, TMR2IF
+		CLRF		    TMR2
+		
+		MOVLB		    H'02'
+		MOVLW		    HIGH NIXIE_VAL_0_2
+		MOVWF		    FSR0H
+		MOVLW		    LOW NIXIE_VAL_0_2
+		MOVWF		    FSR0L
+		
+		CLRF		    I_2
+SHUFFLE_0	
+		MOVLW		    HIGH NIXIE_S_VAL_0_2
+		MOVWF		    FSR1H
+		MOVLW		    LOW NIXIE_S_VAL_0_2
+		MOVWF		    FSR1L
+		MOVFW		    I_2
+		ADDWF		    FSR1L, F
+		MOVFW		    INDF1
+		MOVWF		    SHUFFLE_S_TEMP
+		
+		MOVLW		    B'11000000'
+		ANDWF		    SHUFFLE_S_TEMP, W
+		BTFSS		    STATUS, Z
+		GOTO		    SHUFFLE_1
+		
+		MOVLW		    B'00001111'
+		ANDWF		    SHUFFLE_S_TEMP, F
+		
+		MOVLW		    HIGH SHUFFLE_I_0_2
+		MOVWF		    FSR1H
+		MOVLW		    LOW SHUFFLE_I_0_2
+		MOVWF		    FSR1L
+		MOVFW		    I_2
+		ADDWF		    FSR1L, F
+		
+		MOVFW		    INDF1
+		BTFSC		    STATUS, Z
+		GOTO		    SHUFFLE_1
+		
+		INCF		    INDF0, F
+		MOVLW		    B'00001010'
+		SUBWF		    INDF0, W
+		BTFSC		    STATUS, Z
+		CLRF		    INDF0
+				    
+		MOVFW		    SHUFFLE_S_TEMP
+		SUBWF		    INDF0, W
+		BTFSC		    STATUS, Z
+		DECF		    INDF1, F
+SHUFFLE_1
+		INCF		    FSR0L, F
+		INCF		    I_2, F
+		MOVLW		    B'00001000'
+		SUBWF		    I_2, W
+		BTFSS		    STATUS, Z
+		GOTO		    SHUFFLE_0
+		
+		GOTO		    MAIN
+BACKUP_FSR0
+		MOVFW		    FSR0H
+		MOVWF		    FSR0H_BACK
+		MOVFW		    FSR0L
+		MOVWF		    FSR0L_BACK
+		
+		RETURN
+RESTORE_FSR0
+		MOVFW		    FSR0H_BACK
+		MOVWF		    FSR0H
+		MOVFW		    FSR0L_BACK
+		MOVWF		    FSR0L
+		
+		RETURN
+RESTORE_CLOCK_2
+		MOVLW		    B'01010000'
+		MOVWF		    NIXIE_S_VAL_1_2
+		CLRF		    CLOCK_DISABLE_2
+		
+		MOVLB		    H'04'
+		MOVLW		    H'01'
+		CALL		    UPDATE_CLOCK_4
+		MOVLB		    H'02'
+		
+		RETURN
+PUT_BYTE_2
+		MOVLB		    H'03'
+		MOVWF		    TXREG
+		MOVLB		    H'00'
+		BTFSS		    PIR1, TXIF
+		GOTO		    $ - 1
+		
+		MOVLB		    H'02'
+		RETURN
+READ_HEF_3
+		MOVWF		    PMADRL
+		MOVLW		    H'80'
+		ADDWF		    PMADRL, F
+		MOVLW		    H'1F'
+		MOVWF		    PMADRH
+		
+		BCF		    PMCON1, CFGS
+		BSF		    PMCON1, RD
+		NOP
+		NOP
+		
+		MOVFW		    PMDATL
+		RETURN
+UNCLOCK_HEF_3
+		MOVLW		    H'55'
+		MOVWF		    PMCON2
+		MOVLW		    H'AA'
+		MOVWF		    PMCON2
+		BSF		    PMCON1, WR
+		NOP
+		NOP
+		
+		RETURN
+UPDATE_CLOCK_4
+		MOVLB		    H'02'
+		MOVWF		    UPDATE_CLOCKF_2
+		
+		MOVLW		    H'02'
+		MOVWF		    DS1307_ADDRR_2
+		
+		MOVLB		    H'04'
+		CALL		    READ_DS1307_4
+		MOVLB		    H'02'
+		MOVWF		    CLOCK_TEMP_2
+		
+		BTFSC		    UPDATE_CLOCKF_2, 0
+		GOTO		    UPDATE_CLOCK_4_0
+		
+		SUBWF		    LAST_HOURS_2, W
+		BTFSC		    STATUS, Z
+		RETURN
+UPDATE_CLOCK_4_0	
+		MOVFW		    CLOCK_TEMP_2
+		MOVWF		    LAST_HOURS_2
+		MOVLW		    B'00001111'
+		ANDWF		    CLOCK_TEMP_2, W
+		MOVWF		    NIXIE_S_VAL_7_2
+		MOVLW		    B'00110000'
+		ANDWF		    CLOCK_TEMP_2, W
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		MOVWF		    NIXIE_S_VAL_6_2
+		
+		MOVLB		    H'04'
+		CALL		    READ_DS1307_4
+		MOVLB		    H'02'
+		MOVWF		    CLOCK_TEMP_2
+		MOVLW		    B'00000001'
+		ANDWF		    CLOCK_TEMP_2, W
+		MOVWF		    NIXIE_S_VAL_0_2
+		
+		MOVLB		    H'04'
+		CALL		    READ_DS1307_4
+		MOVLB		    H'02'
+		MOVWF		    CLOCK_TEMP_2
+		MOVLW		    B'00001111'
+		ANDWF		    CLOCK_TEMP_2, W
+		MOVWF		    NIXIE_S_VAL_5_2
+		MOVLW		    B'00110000'
+		ANDWF		    CLOCK_TEMP_2, W
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		MOVWF		    NIXIE_S_VAL_4_2
+		
+		MOVLB		    H'04'
+		CALL		    READ_DS1307_4
+		MOVLB		    H'02'
+		MOVWF		    CLOCK_TEMP_2
+		MOVLW		    B'00001111'
+		ANDWF		    CLOCK_TEMP_2, W
+		MOVWF		    NIXIE_S_VAL_3_2
+		MOVLW		    B'00010000'
+		ANDWF		    CLOCK_TEMP_2, W
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		LSRF		    WREG, F
+		MOVWF		    NIXIE_S_VAL_2_2
+
+		CALL		    SET_SHUFFLE_2
+		MOVLB		    H'04'
+		RETURN
+UPDATE_DS1307_2
+		CLRF		    DS1307_ADDRW_2
+		MOVFW		    CLOCK_VAL_SHADOW_S_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_VAL_SHADOW_M_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_VAL_SHADOW_H_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_VAL_SHADOW_DAY_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_VAL_SHADOW_DATE_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_VAL_SHADOW_MO_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVFW		    CLOCK_VAL_SHADOW_Y_2
+		MOVLB		    H'04'
+		CALL		    WRITE_DS1307_4
+		MOVLB		    H'02'
+		
+		RETURN
+RESET_DS1307_2
+		MOVLW		    B'11111101'
+		ANDWF		    LATC, F
+		MOVLW		    B'00000010'
+		IORWF		    LATC, F
+
+		RETURN
+SET_SHUFFLE_2
+		MOVLW		    D'5'
+		MOVWF		    SHUFFLE_I_0_2
+		MOVLW		    D'6'
+		MOVWF		    SHUFFLE_I_1_2
+		MOVLW		    D'7'
+		MOVWF		    SHUFFLE_I_2_2
+		MOVLW		    D'4'
+		MOVWF		    SHUFFLE_I_3_2
+		MOVLW		    D'5'
+		MOVWF		    SHUFFLE_I_4_2
+		MOVLW		    D'6'
+		MOVWF		    SHUFFLE_I_5_2
+		MOVLW		    D'6'
+		MOVWF		    SHUFFLE_I_6_2
+		MOVLW		    D'5'
+		MOVWF		    SHUFFLE_I_7_2
+		
+		CLRF		    DVR_TIMEH_2
+		CLRF		    DVR_TIMEL_2
+
+		RETURN
+WRITE_DS1307_4
+		MOVLB		    H'02'
+		MOVWF		    DS1307_DW_2
+		MOVLB		    H'04'
+WRITE_DS1307_4_0
+		BSF		    SSP1CON2, SEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		MOVLW		    B'11010000'
+		MOVWF		    SSP1BUF
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BTFSS		    SSP1CON2, ACKSTAT
+		GOTO		    $ + 6
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		GOTO		    WRITE_DS1307_4_0
+		
+		MOVLB		    H'02'
+		MOVFW		    DS1307_ADDRW_2
+		MOVLB		    H'04'
+		MOVWF		    SSP1BUF
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BTFSS		    SSP1CON2, ACKSTAT
+		GOTO		    $ + 6
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		GOTO		    WRITE_DS1307_4_0
+		
+		MOVLB		    H'02'
+		MOVFW		    DS1307_DW_2
+		MOVLB		    H'04'
+		MOVWF		    SSP1BUF
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BTFSS		    SSP1CON2, ACKSTAT
+		GOTO		    $ + 6
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		GOTO		    WRITE_DS1307_4_0
+		
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		
+		MOVLB		    H'02'
+		INCF		    DS1307_ADDRW_2, F
+		MOVLB		    H'04'
+		RETURN
+READ_DS1307_4
+		MOVLB		    H'02'
+		MOVWF		    DS1307_DW_2
+		MOVLB		    H'04'
+READ_DS1307_4_0
+		BSF		    SSP1CON2, SEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		MOVLW		    B'11010000'
+		MOVWF		    SSP1BUF
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BTFSS		    SSP1CON2, ACKSTAT
+		GOTO		    $ + 6
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		GOTO		    READ_DS1307_4_0
+		
+		MOVLB		    H'02'
+		MOVFW		    DS1307_ADDRR_2
+		MOVLB		    H'04'
+		MOVWF		    SSP1BUF
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BTFSS		    SSP1CON2, ACKSTAT
+		GOTO		    $ + 6
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		GOTO		    READ_DS1307_4_0
+		
+		BSF		    SSP1CON2, RSEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		
+		MOVLW		    B'11010001'
+		MOVWF		    SSP1BUF
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BTFSS		    SSP1CON2, ACKSTAT
+		GOTO		    $ + 6
+		BSF		    SSP1CON2, PEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		GOTO		    READ_DS1307_4_0
+		
+		BSF		    SSP1CON2, RCEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		MOVFW		    SSP1BUF
+		MOVLB		    H'02'
+		MOVWF		    DS1307_DW_2
+		MOVLB		    H'04'
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BSF		    SSP1CON2, ACKDT
+		NOP
+		BSF		    SSP1CON2, ACKEN
+		CALL		    WAIT_I2C_4
+		BTFSS		    WREG, 0
+		RETURN
+		BSF		    SSP1CON2, PEN
+		
+		MOVLB		    H'02'
+		INCF		    DS1307_ADDRR_2, F
+		MOVFW		    DS1307_DW_2
+		MOVLB		    H'04'
+		RETURN
+WAIT_I2C_4
+		MOVLB		    H'02'
+		CLRF		    I2C_TIMEOUT_2
+WAIT_I2C_4_0
+		MOVLB		    H'02'
+		INCF		    I2C_TIMEOUT_2, F
+		BTFSS		    STATUS, Z
+		GOTO		    $ + 3
+		CALL		    RESET_DS1307_2
+		RETLW		    H'00'
+		
+		MOVLB		    H'04'
+		BTFSC		    SSP1STAT, R_NOT_W
+		GOTO		    WAIT_I2C_4_0
+		
+		MOVLW		    H'1F'
+		ANDWF		    SSP1CON2, W
+		BTFSS		    STATUS, Z
+		GOTO		    WAIT_I2C_4_0
+		
+		RETLW		    H'01'
+CLR_SHIFT_2
+		BSF		    LATC, 7
+		BCF		    LATA, 5
+		BCF		    LATC, 6
+		MOVLW		    D'8'
+		MOVWF		    I_2
+CLR_SHIFT_2_0
+		BCF		    LATA, 4
+		NOP
+		BSF		    LATA, 4
+		DECFSZ		    I_2, F
+		GOTO		    CLR_SHIFT_2_0
+		
+		BSF		    LATA, 5
+		BCF		    LATC, 7
+		
+		RETURN
+DELAY_0.01
+		MOVLW		    H'CE'
+		MOVWF		    D1
+		MOVLW		    H'08'
+		MOVWF		    D2
+DELAY_0.01_0
+		DECFSZ		    D1, F
+		GOTO		    $ + 2
+		DECFSZ		    D2, F
+		GOTO		    DELAY_0.01_0
+
+		GOTO		    $ + 1
+		NOP
+
+		RETURN
+		
+		END
