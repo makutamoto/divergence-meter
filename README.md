@@ -5,6 +5,8 @@ PICの勉強のために作りました。
 
 ![image.png](./pictures/image.png)
 
+[実際に動いているところ（ブレッドボード上ですが）](https://twitter.com/makutamoto/status/1317350844782632962?s=20)
+
 divergence_meter.X/
 -----
 MPLABのプロジェクトです。
